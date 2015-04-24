@@ -43,7 +43,7 @@ checkConsistency = function(){
 quill.on("text-change", function(){
   window.setTimeout(function(){
     if(editor != null && editor.getDelta != null){
-      console.log("Quill & y-richtext are equal: "+checkConsistency())
+      // console.log("Quill & y-richtext are equal: "+checkConsistency())
     }
   },0)
 })

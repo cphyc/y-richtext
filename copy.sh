@@ -19,7 +19,7 @@ cp ../yjs/lib -rf yjs
 
 cp ../quill/dist -rf quill
 
-cp ../y-richtext/examples/quilljs/* . 
+cp ../y-richtext/examples/quilljs-unbreakable/* . 
 
 sed -i 's/\.\.\/\.\.\/\.\.\//\.\//g' index.html
 

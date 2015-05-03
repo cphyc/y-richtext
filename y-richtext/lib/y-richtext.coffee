@@ -48,14 +48,21 @@ class YRichText extends BaseClass
           editor_name + ")"
 
     # TODO: parse the following directly from $characters+$selections (in O(n))
-    # @editor.editor.deleteText(0, @editor.editor.getText().length)
     @editor.setContents
       ops: @getDelta()
 
     # bind the rest..
+    # TODO: remove observers, when editor is overwritten
     @editor.observeLocalText @passDeltas
     @bindEventsToEditor @editor
     @editor.observeLocalCursor @updateCursorPosition
+
+    # pull changes from quill, before message is received
+    # as suggested https://discuss.quilljs.com/t/problems-in-collaborative-implementation/258
+    # TODO: move this to Editors.coffee
+    @_model.connector.receive_handlers.unshift ()=>
+      @editor.checkUpdate()
+
 
   getDelta: ()->
     text_content = @_model.getContent('characters').val()
@@ -160,16 +167,10 @@ class YRichText extends BaseClass
   # pass deltas to the character instance
   # @param deltas [Array<Object>] an array of deltas
   # @see ot-types for more info
-  passDeltas : (deltas) =>
-    console.log "Received delta from quill: "
-    console.dir deltas
-    @locker.try ()=>
-        console.log "Received delta from quill, also applied on it: "
-        console.dir deltas
-        position = 0
-        for delta in deltas
-          position = deltaHelper @, delta, position
-      , true
+  passDeltas : (deltas) => @locker.try ()=>
+    position = 0
+    for delta in deltas
+      position = deltaHelper @, delta, position
 
   # @override updateCursorPosition(index)
   #   update the position of our cursor to the new one using an index

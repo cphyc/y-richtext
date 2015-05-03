@@ -52,10 +52,8 @@ quill.on("text-change", function(){
   window.setTimeout(function(){
     if(editor != null && editor.getDelta != null){
       var eq = checkConsistency()
-      console.log("Quill & y-richtext converged: "+eq[0])
       if(!eq[0]){
-        var debug = getDebug(eq);
-        console.dir(debug)
+        quill.setContents(editor.getDelta())
       }
     }
   },0)

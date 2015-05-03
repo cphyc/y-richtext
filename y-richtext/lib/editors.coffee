@@ -21,6 +21,7 @@ class AbstractEditor
   setCursor: (param) -> throw new Error "Implement me"
   removeCursor: ()-> throw new Error "Implement me"
 
+
   # remove a cursor
   # @param id [String] the id of the cursor to remove
   removeCursor: (id) -> throw new Error "Implement me"
@@ -47,6 +48,9 @@ class AbstractEditor
 
   # Return the editor instance
   getEditor: ()-> throw new Error "Implement me"
+
+  # Check if the editor tries to accumulate messages. This is executed every time before Yjs executes a messages
+  checkUpdate: ()-> throw new Error "Implement me"
 
 class QuillJs extends AbstractEditor
 
@@ -113,6 +117,9 @@ class QuillJs extends AbstractEditor
 
   getEditor: ()->
     @editor
+
+  checkUpdate: ()->
+    @editor.editor.checkUpdate()
 
 class TestEditor extends AbstractEditor
 

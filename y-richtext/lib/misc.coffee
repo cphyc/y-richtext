@@ -1,16 +1,11 @@
 class Locker
   constructor: () ->
     @is_locked = false
-    @blocked_events = 0
 
-  try: (fun, output) ->
+  try: (fun) ->
     if @is_locked
-      if output? and output
-        @blocked_events++
-        console.log "blocked events = "+@blocked_events
       return
 
-    @blocked_events = 0
     @is_locked = true
     ret = do fun
     @is_locked = false

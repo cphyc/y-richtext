@@ -2,7 +2,6 @@ misc = (require "./misc.coffee")
 BaseClass = misc.BaseClass
 Locker = misc.Locker
 Editors = (require "./editors.coffee")
-
 # All dependencies (like Y.Selections) to other types (that have its own
 # repository) should  be included by the user (in order to reduce the amount of
 # downloaded content).
@@ -16,6 +15,7 @@ class YRichText extends BaseClass
   # @param author [String] the name of the local author
   constructor: (editor_name, editor_instance) ->
     @locker = new Locker()
+    @_graphicsPalette = ['#837DFA', '#FA7D7D','#34DA43', '#D1BC30']
 
     if editor_name? and editor_instance?
       @_bind_later =
@@ -44,10 +44,13 @@ class YRichText extends BaseClass
       if Editor?
         @editor = new Editor editor_instance
       else
-        throw new Error "This type of editor is not supported! ("+editor_name+")"
+        throw new Error "This type of editor is not supported! (" +
+          editor_name + ")"
 
     # TODO: parse the following directly from $characters+$selections (in O(n))
-    @editor.setContents {ops: @getDelta()}
+    # @editor.editor.deleteText(0, @editor.editor.getText().length)
+    @editor.setContents
+      ops: @getDelta()
 
     # bind the rest..
     @editor.observeLocalText @passDeltas
@@ -59,11 +62,16 @@ class YRichText extends BaseClass
     # transform Y.Selections.getSelections() to a delta
     expected_pos = 0
     deltas = []
-    for sel in @_model.getContent("selections").getSelections(@_model.getContent("characters"))
-      selection_length = sel.to - sel.from + 1 # (+1), because if we select from 1 to 1 (with y-selections), then the length is 1
+    selections = @_model.getContent("selections")
+    for sel in selections.getSelections(@_model.getContent("characters"))
+      # (+1), because if we select from 1 to 1 (with y-selections), then the
+      # length is 1
+      selection_length = sel.to - sel.from + 1
       if expected_pos isnt sel.from
         # There is unselected text. $retain to the next selection
-        unselected_insert_content = text_content.splice(0, sel.from-expected_pos).join('')
+        unselected_insert_content = text_content.splice(
+          0, sel.from-expected_pos )
+          .join('')
         deltas.push
           insert: unselected_insert_content
         expected_pos += unselected_insert_content.length
@@ -87,7 +95,9 @@ class YRichText extends BaseClass
         selections: new Y.Selections()
         characters: new Y.List()
         cursors: new Y.Object()
-      @_model = new Operation.MapManager(@, null, {}, content_operations ).execute()
+        authors: new Y.Object()
+      @_model = new Operation.MapManager(@, null, {}, content_operations )
+        .execute()
 
       @_setModel @_model
 
@@ -96,7 +106,8 @@ class YRichText extends BaseClass
         if Editor?
           editor = new Editor @_bind_later.instance
         else
-          throw new Error "This type of editor is not supported! ("+editor_name+") -- fatal error!"
+          throw new Error "This type of editor is not supported! (" +
+          editor_name + ") -- fatal error!"
         @passDeltas editor.getContents()
         @bind editor
         delete @_bind_later
@@ -117,26 +128,63 @@ class YRichText extends BaseClass
   # @param position [Integer] the position where to insert it
   setCursor : (position) ->
     @selfCursor = @_model.getContent("characters").ref(position)
+
     @_model.getContent("cursors").val(@_model.HB.getUserId(), @selfCursor)
 
+  setAuthor : (option) ->
+    if option? and option.name?
+      name = option.name
+    else
+      name = if @author? and @author.name then @author.name else 'Default user'
+
+    if option? and option.color?
+      color = option.color
+    else
+      # if already a color set
+      if @author? and @author.color
+        color = @author.color
+      else # if no color, pick the next one from the palette
+        n_authors = 0
+        for auth of @_model.getContent('authors').val()
+          n_authors++
+        color = @_graphicsPalette[n_authors % @_graphicsPalette.length]
+
+
+    @author =
+       name: name
+       color: color
+
+    console.log option, @author
+    @_model.getContent('authors').val(@_model.HB.getUserId(), @author)
 
   # pass deltas to the character instance
-  # @param deltas [Array<Object>] an array of deltas (see ot-types for more info)
-  passDeltas : (deltas) => @locker.try ()=>
-    position = 0
-    console.log deltas
-    for delta in deltas
-      position = deltaHelper @, delta, position
+  # @param deltas [Array<Object>] an array of deltas
+  # @see ot-types for more info
+  passDeltas : (deltas) =>
+    console.log "Received delta from quill: "
+    console.dir deltas
+    @locker.try ()=>
+        console.log "Received delta from quill, also applied on it: "
+        console.dir deltas
+        position = 0
+        for delta in deltas
+          position = deltaHelper @, delta, position
+      , true
 
   # @override updateCursorPosition(index)
   #   update the position of our cursor to the new one using an index
   #   @param index [Integer] the new index
+  # @override updateCursorPosition(character)
+  #   update the position of our cursor to the new one using a character
+  #   @param character [Character] the new character
   updateCursorPosition : (obj) => @locker.try ()=>
     if typeof obj is "number"
       @selfCursor = @_model.getContent("characters").ref(obj)
     else
       @selfCursor = obj
+
     @_model.getContent("cursors").val(@_model.HB.getUserId(), @selfCursor)
+
 
   # describe how to propagate yjs events to the editor
   # TODO: should be private!
@@ -145,10 +193,7 @@ class YRichText extends BaseClass
     @_model.getContent("characters").observe (events) => @locker.try ()=>
       for event in events
         delta =
-          ops: []
-
-        if event.position > 0
-          delta.ops.push {retain: event.position}
+          ops: [{retain: event.position}]
 
         if event.type is "insert"
           delta.ops.push {insert: event.value}
@@ -158,11 +203,6 @@ class YRichText extends BaseClass
           # delete cursor, if it references to this position
           for cursor_name, cursor_ref in @_model.getContent("cursors").val()
             if cursor_ref is event.reference
-              #
-              # we have to delete the cursor if the reference does not exist anymore
-              # the downside of this approach is that everyone will send this delete event!
-              # in the future, we could replace the cursors, with a y-selections
-              #
               window.setTimeout(()->
                   @_model.getContent("cursors").delete(cursor_name)
                 , 0)
@@ -172,7 +212,7 @@ class YRichText extends BaseClass
         @editor.updateContents delta
 
     # update the editor when something on the $selections happens
-    @_model.getContent("selections").observe (event)=> @locker.try ()=>
+    @_model.getContent("selections").observe (event) => @locker.try ()=>
       attrs = {}
       if event.type is "select"
         for attr,val of event.attrs
@@ -189,27 +229,36 @@ class YRichText extends BaseClass
         ]
 
     # update the editor when the cursor is moved
-    @_model.getContent("cursors").observe (events)=> @locker.try ()=>
+    @_model.getContent("cursors").observe (events) => @locker.try ()=>
       for event in events
         if event.type is "update" or event.type is "add"
-          author = event.changedBy
-          ref_to_char = event.object.val(author)
+          authorId = event.changedBy
+          ref_to_char = event.object.val(authorId)
+
           if ref_to_char is null
             position = @editor.getLength()
           else if ref_to_char?
             if ref_to_char.isDeleted()
+              #
+              # we have to delete the cursor if the reference does not exist anymore
+              # the downside of this approach is that everyone will send this delete event!
+              # in the future, we could replace the cursors, with a y-selections
+              #
+              window.setTimeout(()->
+                  event.object.delete(authorId)
+                , 0)
               return
             else
               position = ref_to_char.getPosition()
           else
             console.warn "ref_to_char is undefined"
             return
-
+          author_info = @_model.getContent('authors').val(authorId)
           params =
-            id: author
+            id: authorId
             index: position
-            text: author
-            color: "grey"
+            name: author_info?.name or "Default user"
+            color: author_info?.color or "grey"
           @editor.setCursor params
         else
           @editor.removeCursor event.name
@@ -217,6 +266,13 @@ class YRichText extends BaseClass
     @_model.connector.onUserEvent (event)=>
       if event.action is "userLeft"
         @_model.getContent("cursors").delete(event.user)
+
+    @_model.getContent('authors').observe (events) => @locker.try ()=>
+      for event in events
+        @editor.removeCursor event.changedBy
+
+
+
 
   # Apply a delta and return the new position
   # @param delta [Object] a *single* delta (see ot-types for more info)
@@ -242,7 +298,8 @@ class YRichText extends BaseClass
           else if typeof insert_content is "number"
             [insert_content]
           else
-            throw new Error "Got an unexpected value in delta.insert! ("+(typeof content)+")"
+            throw new Error "Got an unexpected value in delta.insert! (" +
+            (typeof content) + ")"
         insertHelper thisObj, position, content_array
         from = thisObj._model.getContent("characters").ref position
         to = thisObj._model.getContent("characters").ref(
@@ -274,7 +331,8 @@ class YRichText extends BaseClass
       throw new Error "This part of code must not be reached!"
 
   insertHelper = (thisObj, position, content_array) ->
-    thisObj._model.getContent("characters").insertContents position, content_array
+    thisObj._model.getContent("characters").insertContents(
+      position, content_array)
 
   deleteHelper = (thisObj, position, length = 1) ->
     thisObj._model.getContent("characters").delete position, length

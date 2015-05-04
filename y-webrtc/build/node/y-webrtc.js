@@ -93,6 +93,10 @@ WebRTC.prototype.send = function(uid, message){
     if(peer){
       // success is true, if the message is successfully sent
       success = peer.sendDirectly("simplewebrtc", "yjs", message);
+      if(self.debug != null && self.debug && success){
+        console.log("Send:");
+        console.dir(message);
+      }
     }
     if(!success){
       // resend the message if it didn't work
@@ -107,6 +111,10 @@ WebRTC.prototype.send = function(uid, message){
 // (it may send the message back to itself).
 // The webrtc connecor tries to send it to every single clients directly
 WebRTC.prototype.broadcast = function(message){
+  if(this.debug != null && this.debug){
+    console.log("Broadcasting:");
+    console.dir(message);
+  }
   this.swr.sendDirectlyToAll("simplewebrtc","yjs",message);
 };
 
@@ -120,4 +128,3 @@ if(window !== undefined){
 if(module !== undefined){
   module.exports = WebRTC;
 }
-

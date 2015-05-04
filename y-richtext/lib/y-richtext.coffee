@@ -167,10 +167,15 @@ class YRichText extends BaseClass
   # pass deltas to the character instance
   # @param deltas [Array<Object>] an array of deltas
   # @see ot-types for more info
-  passDeltas : (deltas) => @locker.try ()=>
-    position = 0
-    for delta in deltas
-      position = deltaHelper @, delta, position
+  passDeltas : (deltas) =>
+    console.log "Received deltas:"
+    console.dir deltas
+    @locker.try ()=>
+      console.log "Applied deltas:"
+      console.dir deltas
+      position = 0
+      for delta in deltas
+        position = deltaHelper @, delta, position
 
   # @override updateCursorPosition(index)
   #   update the position of our cursor to the new one using an index

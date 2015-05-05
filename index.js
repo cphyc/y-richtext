@@ -11,8 +11,7 @@ var quill = new Quill('#editor', {
     theme: 'snow'
 });
 quill.addModule('toolbar', { container: '#toolbar' });
-window.connector = new Y.WebRTC('openRoom');
-connector.debug = true;
+window.connector = new Y.WebRTC('devRoom24');
 
 // connector.debug = true;
 window.y = new Y(connector);
@@ -49,24 +48,17 @@ function getDebug(eq){
   }
 }
 
-var checking_consistency = false;
 quill.on("text-change", function(){
-  if(!checking_consistency){
-    window.setTimeout(function(){
-      if(editor != null && editor.getDelta != null){
-        var eq = checkConsistency()
-        if(!eq[0]){
-          editor.locker.try(function(){
-            quill.setContents(editor.getDelta())
-            console.log("replaced contents..")
-          })
-        }
+  window.setTimeout(function(){
+    if(editor != null && editor.getDelta != null){
+      var eq = checkConsistency()
+      console.log("Quill & y-richtext converged: "+eq[0])
+      if(!eq[0]){
+        var debug = getDebug(eq);
+        console.dir(debug)
       }
-      checking_consistency = false;
-    },500)
-    checking_consistency = true;
-  }
-
+    }
+  },0)
 })
 
 
